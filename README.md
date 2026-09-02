@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # MoMo Marketplace AI
 
 Hackathon-ready local marketplace demo with AI features and a production-shaped MTN MoMo Collection backend.
@@ -31,3 +32,7 @@ The backend also exposes `POST /api/shops` and `POST /api/products` for the merc
 Add the real MoMo Collection API values to `backend/.env`. Credentials are intentionally not included in this project. Payment requests are created by the backend and the order is confirmed only after the provider reports `SUCCESSFUL`.
 
 When MoMo credentials are not configured, `POST /api/payments/momo` uses a clearly flagged sandbox response and immediately creates a confirmed demo order. This keeps the checkout journey demoable while credentials are pending. Use a South African number in `27XXXXXXXXX` format in the checkout form.
+=======
+# -embedded-intelligence-momo
+AI-powered MoMo Mini App that enables African SMEs to create digital storefronts, accept secure payments, manage inventory, and grow their businesses with intelligent insights.
+>>>>>>> 014b7d73ad54ce4dba99478a84e1c5b81223b71d
