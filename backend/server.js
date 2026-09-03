@@ -7,7 +7,9 @@ import { randomUUID } from "node:crypto";
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const MOMO_BASE_URL = process.env.MOMO_BASE_URL || "https://proxy.momoapi.mtn.com";
-const MOMO_TARGET_ENVIRONMENT = process.env.MOMO_TARGET_ENVIRONMENT || "mtnsouthafrica";
+const MOMO_TARGET_ENVIRONMENT = process.env.MOMO_ENVIRONMENT || process.env.MOMO_TARGET_ENVIRONMENT || "mtnsouthafrica";
+const MOMO_CALLBACK_URL = process.env.MOMO_CALLBACK_URL || "";
+const MOMO_COLLECTION_SUBSCRIPTION_KEY = process.env.MOMO_COLLECTION_SUBSCRIPTION_KEY || process.env.MOMO_SUBSCRIPTION_KEY || "";
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || true }));
 app.use(express.json());
@@ -17,14 +19,22 @@ const products = [
   { id: "running-shoes", name: "Running Shoes", seller: "Kasi Kicks", price: 450, category: "Fashion", emoji: "👟" },
   { id: "sourdough", name: "Sourdough Loaf", seller: "The Daily Crumb", price: 65, category: "Food", emoji: "🍞" },
   { id: "candle", name: "Scented Candle", seller: "Hearth & Home", price: 220, category: "Home", emoji: "🕯️" },
-  { id: "studio-buds", name: "Studio Buds", seller: "Sound Studio", price: 459, category: "Electronics", emoji: "🎧", description: "Compact earbuds with rich sound for work, travel and everyday listening." }
+  { id: "studio-buds", name: "Studio Buds", seller: "Sound Studio", price: 459, category: "Electronics", emoji: "🎧", description: "Compact earbuds with rich sound for work, travel and everyday listening." },
+  { id: "fresh-spinach", name: "Fresh Spinach", seller: "Mandla's Garden", price: 18, category: "Home-grown", unit: "1 bunch", emoji: "🥬", description: "Freshly harvested spinach grown by a local community gardener." },
+  { id: "roasted-peanuts", name: "Roasted Peanuts", seller: "Thandi's Patch", price: 25, category: "Home-grown", unit: "250 g", emoji: "🥜", description: "Locally grown and roasted peanuts, packed in convenient 250 g portions." },
+  { id: "garden-lettuce", name: "Garden Lettuce", seller: "Mandla's Garden", price: 15, category: "Home-grown", unit: "1 head", emoji: "🥬", description: "Crisp lettuce harvested fresh from a nearby home garden." },
+  { id: "maize-meal", name: "Maize Meal", seller: "Siyakhula Spaza", price: 42, category: "Spaza shop", unit: "2.5 kg", emoji: "🌽", description: "A family-size staple available from your neighborhood spaza shop." },
+  { id: "bread-milk", name: "Bread and Milk", seller: "Corner Star Spaza", price: 32, category: "Spaza shop", unit: "1 set", emoji: "🥖", description: "Everyday essentials conveniently stocked by a local spaza shop." },
+  { id: "washing-soap", name: "Washing Soap", seller: "Siyakhula Spaza", price: 28, category: "Spaza shop", unit: "750 g", emoji: "🧼", description: "Affordable household soap from a nearby community retailer." }
 ];
 const shops = [{ id: "techhaven", name: "TechHaven", owner: "demo-user", category: "Electronics" }];
 const payments = new Map();
 const orders = new Map();
+const merchantStats = { todaySales: 2450, orders: 12 };
 
 function configured() {
-  return ["MOMO_SUBSCRIPTION_KEY", "MOMO_API_USER", "MOMO_API_KEY"].every((key) => Boolean(process.env[key]) && !process.env[key].startsWith("replace_"));
+  return Boolean(MOMO_COLLECTION_SUBSCRIPTION_KEY && process.env.MOMO_API_USER && process.env.MOMO_API_KEY)
+    && ![MOMO_COLLECTION_SUBSCRIPTION_KEY, process.env.MOMO_API_USER, process.env.MOMO_API_KEY].some((value) => value.startsWith("replace_"));
 }
 
 function normaliseMsisdn(value) {
@@ -39,7 +49,7 @@ async function momoAccessToken() {
   const response = await fetch(`${MOMO_BASE_URL}/collection/token/`, {
     method: "POST",
     headers: {
-      "Ocp-Apim-Subscription-Key": process.env.MOMO_SUBSCRIPTION_KEY,
+      "Ocp-Apim-Subscription-Key": MOMO_COLLECTION_SUBSCRIPTION_KEY,
       "X-Target-Environment": MOMO_TARGET_ENVIRONMENT,
       Authorization: `Basic ${basic}`
     }
@@ -51,7 +61,7 @@ async function momoAccessToken() {
 
 function momoHeaders(token, referenceId) {
   return {
-    "Ocp-Apim-Subscription-Key": process.env.MOMO_SUBSCRIPTION_KEY,
+    "Ocp-Apim-Subscription-Key": MOMO_COLLECTION_SUBSCRIPTION_KEY,
     "X-Target-Environment": MOMO_TARGET_ENVIRONMENT,
     Authorization: `Bearer ${token}`,
     ...(referenceId ? { "X-Reference-Id": referenceId } : {})
@@ -88,7 +98,12 @@ app.post("/api/products", (req, res) => {
 
 app.get("/api/products", (req, res) => {
   const query = String(req.query.q || "").toLowerCase();
-  const matches = query ? products.filter((product) => Object.values(product).join(" ").toLowerCase().includes(query)) : products;
+  const category = String(req.query.category || "").toLowerCase();
+  const matches = products.filter((product) => {
+    const matchesCategory = !category || product.category.toLowerCase() === category;
+    const matchesQuery = !query || Object.values(product).join(" ").toLowerCase().includes(query);
+    return matchesCategory && matchesQuery;
+  });
   res.json({ products: matches });
 });
 
@@ -117,29 +132,32 @@ app.post("/api/ai/shopping-assistant", (req, res) => {
 });
 
 app.get("/api/merchant/dashboard", (_req, res) => res.json({
-  todaySales: 2450, orders: 12, products: 24,
+  todaySales: merchantStats.todaySales, orders: merchantStats.orders, products: products.length,
   insight: "Your wireless earphones are your fastest-growing product. Consider restocking within the next 3 days."
 }));
 
-app.post("/api/payments/momo", async (req, res, next) => {
+app.post(["/api/payments/momo", "/api/payments/pay"], async (req, res, next) => {
   try {
-    const { amount, currency = "ZAR", payerMsisdn, externalId, payerMessage = "MoMo Market payment", payeeNote = "MoMo Market order", items = [] } = req.body;
+    const { amount, currency = "ZAR", payerMsisdn, phoneNumber, externalId, payerMessage = "MoMo Market payment", payeeNote = "MoMo Market order", items = [] } = req.body;
     const cents = Number(amount);
     if (!Number.isFinite(cents) || cents <= 0) return res.status(400).json({ error: "amount must be greater than zero." });
     if (currency !== "ZAR") return res.status(400).json({ error: "Only ZAR is supported for this collection setup." });
+    const payer = normaliseMsisdn(payerMsisdn || phoneNumber);
     const referenceId = randomUUID();
     if (!configured()) {
       const payment = { referenceId, amount: cents, currency, items, externalId: externalId || referenceId, state: "SUCCESSFUL", demo: true };
       payments.set(referenceId, payment);
       const order = { id: `ord_${randomUUID()}`, paymentReference: referenceId, amount: cents, currency, items, status: "CONFIRMED", demo: true };
       orders.set(referenceId, order);
+      merchantStats.todaySales += cents;
+      merchantStats.orders += 1;
       return res.status(202).json({ referenceId, status: "SUCCESSFUL", demo: true, order });
     }
     const token = await momoAccessToken();
     const response = await fetch(`${MOMO_BASE_URL}/collection/v1_0/requesttopay`, {
       method: "POST",
-      headers: { ...momoHeaders(token, referenceId), "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: String(cents), currency, externalId: externalId || referenceId, payer: { partyIdType: "MSISDN", partyId: normaliseMsisdn(payerMsisdn) }, payerMessage, payeeNote })
+      headers: { ...momoHeaders(token, referenceId), "Content-Type": "application/json", ...(MOMO_CALLBACK_URL ? { "X-Callback-Url": MOMO_CALLBACK_URL } : {}) },
+      body: JSON.stringify({ amount: String(cents), currency, externalId: externalId || referenceId, payer: { partyIdType: "MSISDN", partyId: payer }, payerMessage, payeeNote })
     });
     if (response.status !== 202) throw new Error(`MoMo request-to-pay failed (${response.status}).`);
     payments.set(referenceId, { referenceId, amount: cents, currency, items, externalId: externalId || referenceId, state: "PENDING" });
@@ -160,6 +178,8 @@ app.get("/api/payments/momo/:referenceId", async (req, res, next) => {
     payment.state = providerPayment.status;
     if (providerPayment.status === "SUCCESSFUL" && !orders.has(referenceId)) {
       orders.set(referenceId, { id: `ord_${randomUUID()}`, paymentReference: referenceId, amount: payment.amount, currency: payment.currency, items: payment.items, status: "CONFIRMED", financialTransactionId: providerPayment.financialTransactionId || null });
+      merchantStats.todaySales += payment.amount;
+      merchantStats.orders += 1;
     }
     res.json({ ...providerPayment, order: orders.get(referenceId) || null });
   } catch (error) { next(error); }

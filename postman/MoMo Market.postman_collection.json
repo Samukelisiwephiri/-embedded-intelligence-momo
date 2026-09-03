@@ -1,0 +1,50 @@
+{
+  "info": {
+    "name": "MoMo Market API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "api_url", "value": "http://localhost:3001" },
+    { "key": "payment_reference", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{api_url}}/health" }
+    },
+    {
+      "name": "Generate Product Description",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"name\": \"Wireless Earphones\",\n  \"price\": 499\n}" },
+        "url": "{{api_url}}/api/ai/product-description"
+      }
+    },
+    {
+      "name": "AI Shopping Assistant",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"query\": \"I need headphones under R500\"\n}" },
+        "url": "{{api_url}}/api/ai/shopping-assistant"
+      }
+    },
+    {
+      "name": "Create MoMo Payment",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"amount\": 5,\n  \"currency\": \"ZAR\",\n  \"payerMsisdn\": \"27788033288\",\n  \"externalId\": \"postman-demo-001\",\n  \"items\": [{ \"productId\": \"earphones\", \"quantity\": 1 }]\n}" },
+        "url": "{{api_url}}/api/payments/momo"
+      }
+    },
+    {
+      "name": "Get MoMo Payment Status",
+      "request": {
+        "method": "GET",
+        "url": "{{api_url}}/api/payments/momo/{{payment_reference}}"
+      }
+    }
+  ]
+}
