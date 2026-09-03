@@ -1,0 +1,95 @@
+{
+  "info": {
+    "name": "MoMo API - Collection (with scripts)",
+    "_postman_id": "momo-collection-with-scripts",
+    "description": "Postman collection with pre-request and test scripts to automate token and reference-id handling. Do NOT commit real secrets in environments.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get Access Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Store access_token in environment variable 'access_token'",
+              "const body = pm.response.json();",
+              "if (body && body.access_token) {",
+              "  pm.environment.set('access_token', body.access_token);",
+              "  console.log('Stored access_token');",
+              "} else {",
+              "  console.warn('No access_token found in response');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Ocp-Apim-Subscription-Key", "value": "{{collection_subscription_key}}" },
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
+          { "key": "Authorization", "value": "Basic {{basic_auth}}" }
+        ],
+        "body": { "mode": "raw", "raw": "" },
+        "url": { "raw": "{{momo_base_url}}/collection/token/", "host": ["{{momo_base_url}}"], "path": ["collection", "token", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "Request To Pay (RequestToPay)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ensure basic_auth is set from user/key",
+              "const user = pm.environment.get('momo_api_user');",
+              "const key = pm.environment.get('momo_api_key');",
+              "if (user && key) pm.environment.set('basic_auth', btoa(user + ':' + key));",
+              "// Generate a UUID reference for X-Reference-Id",
+              "const ref = pm.variables.replaceIn('{{$guid}}');",
+              "pm.environment.set('reference_id', ref);",
+              "pm.environment.set('external_id', 'ext-' + ref);",
+              "// Log for debugging",
+              "console.log('Prepared reference_id:', ref);
+"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Ocp-Apim-Subscription-Key", "value": "{{collection_subscription_key}}" },
+          { "key": "X-Target-Environment", "value": "{{momo_target_environment}}" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Reference-Id", "value": "{{reference_id}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"10\",\n  \"currency\": \"ZAR\",\n  \"externalId\": \"{{external_id}}\",\n  \"payer\": { \"partyIdType\": \"MSISDN\", \"partyId\": \"{{payer_msisdn}}\" },\n  \"payerMessage\": \"Test payment\",\n  \"payeeNote\": \"Order payment\"\n}"
+        },
+        "url": { "raw": "{{momo_base_url}}/collection/v1_0/requesttopay", "host": ["{{momo_base_url}}"], "path": ["collection", "v1_0", "requesttopay"] }
+      },
+      "response": []
+    },
+    {
+      "name": "Get RequestToPay Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Ocp-Apim-Subscription-Key", "value": "{{collection_subscription_key}}" },
+          { "key": "X-Target-Environment", "value": "{{momo_target_environment}}" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": { "raw": "{{momo_base_url}}/collection/v1_0/requesttopay/{{reference_id}}", "host": ["{{momo_base_url}}"], "path": ["collection", "v1_0", "requesttopay", "{{reference_id}}"] }
+      },
+      "response": []
+    }
+  ]
+}

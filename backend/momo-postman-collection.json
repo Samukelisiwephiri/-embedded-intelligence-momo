@@ -1,0 +1,86 @@
+{
+  "info": {
+    "name": "MoMo API - Collection",
+    "_postman_id": "momo-collection",
+    "description": "Minimal Postman collection for MTN MoMo Collection APIs (token, request-to-pay, status). Do not commit real secrets; use the environment file to set keys.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get Access Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (body && body.access_token) {",
+              "  pm.environment.set('access_token', body.access_token);",
+              "  console.log('Stored access_token');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Ocp-Apim-Subscription-Key", "value": "{{collection_subscription_key}}" },
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" },
+          { "key": "Authorization", "value": "Basic {{basic_auth}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": ""
+        },
+        "url": {
+          "raw": "{{momo_base_url}}/collection/token/",
+          "host": ["{{momo_base_url}}"],
+          "path": ["collection", "token", ""]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Request To Pay (RequestToPay)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Ocp-Apim-Subscription-Key", "value": "{{collection_subscription_key}}" },
+          { "key": "X-Target-Environment", "value": "{{momo_target_environment}}" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Reference-Id", "value": "{{reference_id}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount\": \"10\",\n  \"currency\": \"ZAR\",\n  \"externalId\": \"{{external_id}}\",\n  \"payer\": { \"partyIdType\": \"MSISDN\", \"partyId\": \"{{payer_msisdn}}\" },\n  \"payerMessage\": \"Test payment\",\n  \"payeeNote\": \"Order payment\"\n}"
+        },
+        "url": {
+          "raw": "{{momo_base_url}}/collection/v1_0/requesttopay",
+          "host": ["{{momo_base_url}}"],
+          "path": ["collection", "v1_0", "requesttopay"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get RequestToPay Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Ocp-Apim-Subscription-Key", "value": "{{collection_subscription_key}}" },
+          { "key": "X-Target-Environment", "value": "{{momo_target_environment}}" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{momo_base_url}}/collection/v1_0/requesttopay/{{reference_id}}",
+          "host": ["{{momo_base_url}}"],
+          "path": ["collection", "v1_0", "requesttopay", "{{reference_id}}"]
+        }
+      },
+      "response": []
+    }
+  ]
+}
